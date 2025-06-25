@@ -161,10 +161,12 @@ var originalProto = XMLHttpRequest.prototype;
 var originalSend = originalProto.send;
 var originalOpen = originalProto.open;
 function lazyReportBatch(data) {
+  console.log("data", data);
   addCache(data);
   var reqData = getCache();
   if (reqData.length && reqData.length > config.batchSize) {
-    report(data);
+    console.log('data----', reqData);
+    report(reqData);
     clearCache();
   }
 }
@@ -177,11 +179,12 @@ function report(data) {
     data: data
   });
   if (isSupportSendBeacon()) {
-    sendBeaconRequest(config.url, reportData);
+    sendBeaconRequest(config, reportData);
   } else {
     if (config.useImageUpload) {
-      imgRequest(config.url, reportData);
+      imgRequest(config, reportData);
     } else {
+      console.log('config.url', config.url);
       xhrRequest(config.url, reportData);
     }
   }
@@ -194,29 +197,33 @@ function imgRequest(config, data) {
 }
 
 // xhr
-function xhrRequest(config, data) {
+function xhrRequest(url, data) {
   var xhr = new XMLHttpRequest();
   if (window.requestIdleCallback) {
     window.requestIdleCallback(function () {
-      originalOpen.call(xhr, 'post', config.url);
+      originalOpen.call(xhr, 'post', url);
       originalSend.call(xhr, JSON.stringify(data));
+      console.log('data', data);
     }, {
       timeout: 3000
     });
   } else {
     setTimeout(function () {
-      originalOpen.call(xhr, 'post', config.url);
+      console.log('request2');
+      originalOpen.call(xhr, 'post', url);
       originalSend.call(xhr, JSON.stringify(data));
     });
   }
 }
-
 // sendBeacon
 function isSupportSendBeacon() {
   var _window$navigator;
   return !!((_window$navigator = window.navigator) !== null && _window$navigator !== void 0 && _window$navigator.sendBeacon);
 }
-var sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : xhrRequest;
+// const sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : xhrRequest
+var sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : function (url, data) {
+  return xhrRequest(url, data);
+};
 function sendBeaconRequest(config, data) {
   if (window.requestIdleCallback) {
     window.requestIdleCallback(function () {
@@ -394,13 +401,16 @@ function observerLCP() {
       _step;
     try {
       for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var _entry$element;
         var entry = _step.value;
         var json = entry.toJSON();
-        console.log(json);
+        console.log('json', json);
         var reportData = _objectSpread2(_objectSpread2({}, json), {}, {
+          target: (_entry$element = entry.element) === null || _entry$element === void 0 ? void 0 : _entry$element.tagName,
+          name: entry.entryType,
+          subType: entry.entryType,
           type: 'performance',
-          subType: entry.name,
-          pageUrl: window.location.href
+          pageURL: window.location.href
         });
         lazyReportBatch(reportData);
       }
@@ -410,8 +420,6 @@ function observerLCP() {
       _iterator.f();
     }
   };
-
-  // 统计计算LCP 最大内容绘制时间
   var observer = new PerformanceObserver(entryHandler);
   observer.observe({
     type: 'largest-contentful-paint',
@@ -469,35 +477,51 @@ function error() {
       return;
     }
     if (target.src || target.href) {
-      target.src || target.href;
-      ({
+      var url = target.src || target.href;
+      var reportData = {
+        type: 'error',
+        subType: 'resource',
+        url: url,
         html: target.outerHTML,
-        paths: event.path.map(function (item) {
-          return item.tagName;
-        }).filter(Boolean),
+        pageUrl: window.location.href,
+        paths: event.path,
         resourceType: target.tagName
-      });
+      };
+      lazyReportBatch(reportData);
     }
   }, true);
   // 捕获js错误
   window.onerror = function (msg, url, lineNo, columnNo, error) {
-    ({
-      stack: error.stack});
+    var reportData = {
+      type: 'error',
+      subType: 'js',
+      msg: msg,
+      url: url,
+      lineNo: lineNo,
+      columnNo: columnNo,
+      stack: error.stack,
+      pageUrl: window.location.href
+    };
+    lazyReportBatch(reportData);
   };
   // 捕获 promise 错误
   window.addEventListener('unhandledrejection', function (event) {
     var _event$reason;
-    ({
+    var reportData = {
+      type: 'error',
+      subType: 'promise',
       reason: (_event$reason = event.reason) === null || _event$reason === void 0 ? void 0 : _event$reason.stack,
+      pageUrl: window.location.href,
       startTIme: event.timeStamp
-    });
-  });
+    };
+    lazyReportBatch(reportData);
+  }, true);
 }
 
 function onClick() {
   ['mousedown', 'touchstart'].forEach(function (eventType) {
     window.addEventListener(eventType, function (event) {
-      var _event$path;
+      var _event$composedPath;
       var target = event.target;
       var _target$getBoundingCl = target.getBoundingClientRect(),
         top = _target$getBoundingCl.top,
@@ -511,11 +535,11 @@ function onClick() {
         type: 'behavior',
         subType: 'click',
         target: target.tagName,
-        paths: (_event$path = event.path) === null || _event$path === void 0 ? void 0 : _event$path.map(function (item) {
+        paths: event.path || (event === null || event === void 0 || (_event$composedPath = event.composedPath()) === null || _event$composedPath === void 0 ? void 0 : _event$composedPath.map(function (item) {
           return item.tagName;
-        }).filter(Boolean),
+        })),
         startTime: event.timeStamp,
-        pageURL: getPageURL(),
+        pageURL: window.location.href,
         outerHTML: target.outerHTML,
         innerHTML: target.innerHTML,
         width: target.offsetWidth,
@@ -582,28 +606,55 @@ function install(Vue, options) {
   if (window.__webEyeSDK__.vue) {
     return;
   }
+  setConfig(options);
   window.__webEyeSDK__.vue = true;
   var handler = Vue.config.errorHandler;
   Vue.config.errorHandler = function (err, vm, info) {
+    var reportData = {
+      info: info,
+      error: err.stack,
+      subType: 'vue',
+      type: 'error',
+      startTime: window.performance.now(),
+      pageURL: window.location.href
+    };
+    lazyReportBatch(reportData);
     if (handler) {
       handler.call(this, err, vm, info);
     }
   };
 }
-function errorBoundary() {
+function errorBoundary(err, info) {
+  var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
   if (window.__webEyeSDK__.react) {
     return;
   }
   window.__webEyeSDK__.react = true;
+  setConfig(options);
+  var reportData = {
+    info: info,
+    error: err === null || err === void 0 ? void 0 : err.stack,
+    subType: 'react',
+    type: 'error',
+    startTime: window.performance.now(),
+    pageURL: window.location.href
+  };
+  lazyReportBatch(reportData);
 }
 function init(options) {
   setConfig(options);
+  // error();
+  // performance();
+  behavior();
 }
+var index = {
+  errorBoundary: errorBoundary,
+  install: install,
+  performance: performance$1,
+  behavior: behavior,
+  error: error,
+  init: init
+};
 
-exports.behavior = behavior;
-exports.error = error;
-exports.errorBoundary = errorBoundary;
-exports.init = init;
-exports.install = install;
-exports.performance = performance$1;
+module.exports = index;
 //# sourceMappingURL=meerkat.cjs.js.map

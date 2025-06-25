@@ -12,6 +12,7 @@ function install(Vue,options){
     if(window.__webEyeSDK__.vue){
         return
     }
+    setConfig(options)
     window.__webEyeSDK__.vue=true;
     const handler = Vue.config.errorHandler;
     Vue.config.errorHandler = function(err,vm,info){
@@ -33,11 +34,12 @@ function install(Vue,options){
     }
 }
 
-function errorBoundary(err,info){
+function errorBoundary(err,info,options={}){
     if(window.__webEyeSDK__.react){
         return
     }
     window.__webEyeSDK__.react = true;
+    setConfig(options);
     const reportData = {
         info,
         error:err?.stack,
@@ -53,9 +55,12 @@ function errorBoundary(err,info){
 
 function init (options){
     setConfig(options);
+    // error();
+    // performance();
+    behavior();
 }
 
-export {
+export default {
     errorBoundary,
     install,
     performance,

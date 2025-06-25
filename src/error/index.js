@@ -16,7 +16,7 @@ export default function error(){
                 url,
                 html:target.outerHTML,
                 pageUrl: window.location.href,
-                paths: event.path.map(item => item.tagName).filter(Boolean),
+                paths: event.path,
                 resourceType: target.tagName
             }
             lazyReportBatch(reportData)

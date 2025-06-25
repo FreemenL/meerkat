@@ -6,13 +6,16 @@ export const originalSend = originalProto.send;
 export const originalOpen = originalProto.open;
 
 export function lazyReportBatch(data){
+    console.log(`data`,data);
     addCache(data);
     const reqData = getCache();
     if(reqData.length&&reqData.length>config.batchSize){
-        report(data);
+        console.log('data----',reqData)
+        report(reqData);
         clearCache();
     }
 }
+
 export function report(data){
     if(!config.url){
         console.log('请设置上传的url地址');
@@ -24,12 +27,13 @@ export function report(data){
     })
 
     if(isSupportSendBeacon()){
-        sendBeaconRequest(config.url,reportData);
+        sendBeaconRequest(config,reportData);
     }else{
         if(config.useImageUpload){
-            imgRequest(config.url,reportData);
+            imgRequest(config,reportData);
         }else{
-            xhrRequest(config.url,reportData)
+            console.log('config.url',config.url);
+            xhrRequest(config.url, reportData)
         }
     }
 } 
@@ -41,29 +45,28 @@ export function imgRequest(config,data){
 }
 
 // xhr
-export function xhrRequest(config,data) {
+export function xhrRequest(url, data) {
     const xhr = new XMLHttpRequest()
     if (window.requestIdleCallback) {
-        window.requestIdleCallback(() => {
-            originalOpen.call(xhr, 'post', config.url)
+         window.requestIdleCallback(() => {
+            originalOpen.call(xhr, 'post', url)
             originalSend.call(xhr, JSON.stringify(data))
+            console.log('data', data)
         }, { timeout: 3000 })
     } else {
         setTimeout(() => {
-            originalOpen.call(xhr, 'post', config.url)
+            console.log('request2')
+            originalOpen.call(xhr, 'post', url)
             originalSend.call(xhr, JSON.stringify(data))
         })
     }
-
 }
-
 // sendBeacon
 export function isSupportSendBeacon() {
     return !!window.navigator?.sendBeacon
 }
-
-const sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : xhrRequest
-
+// const sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : xhrRequest
+const sendBeacon = isSupportSendBeacon() ? window.navigator.sendBeacon.bind(window.navigator) : (url, data) => xhrRequest(url, data)
 export function sendBeaconRequest(config,data) {
      if (window.requestIdleCallback) {
         window.requestIdleCallback(() => {

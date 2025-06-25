@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="../dist/meerkat.js"></script>
+    <script>
+        // console.log(`meerkat`,meerkat)
+        meerkat.init({
+            url:'http://127.0.0.1:8999/reportData',
+            batchSize:4,
+        })
+    </script>
+</head>
+<body>
+    <img src="http://test.render.com/test.png" alt="">
+    <img src="http://test.render.com/test2.png" alt="">
+    <img src="http://test.render.com/test3.png" alt="">
+    <script>
+        function test(){
+            return Promise.reject(Error('promise'))
+        }
+        function test1(){
+            return Promise.reject(Error('async'))
+        }
+        test()
+        test1()
+        throw Error('test');
+    </script>
+</body>
+</html>

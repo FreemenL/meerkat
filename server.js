@@ -9,10 +9,10 @@ app.use(bodyParser.json())
 app.use(bodyParser.text())
         
 app.post('/reportData', (req, res) => {
-    console.log(req.body.length)
+    console.log(`req.body`,req.body)
     res.status(200).send('')
 })
 
-app.listen(8080, () => {
-    console.log('server listen on port 8080...')
+app.listen(8999, () => {
+    console.log('server listen on port 8999...')
 })
